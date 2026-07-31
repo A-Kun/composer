@@ -326,6 +326,42 @@ class AuthHelperTest extends TestCase
         );
     }
 
+    public function testAddAuthenticationHeaderWithBasicHttpAuthenticationMasksTokenUsername(): void
+    {
+        $origin = 'some-api.url.com';
+        $url = 'https://some-api.url.com';
+        $auth = [
+            'username' => 'ghp_1234567890abcdefghijklmnopqrstuvwxyzAB',
+            'password' => 'x-oauth-basic',
+        ];
+        $headers = [
+            'Accept-Encoding: gzip',
+            'Connection: close',
+        ];
+
+        $this->expectsAuthentication($origin, $auth);
+        $this->config->expects($this->once())
+            ->method('get')
+            ->with('gitlab-domains')
+            ->willReturn([$origin]);
+        $this->io->expects($this->once())
+            ->method('writeError')
+            ->with(
+                'Using HTTP basic authentication with username "ghp***"',
+                true,
+                IOInterface::DEBUG
+            );
+
+        $expectedHeaders = array_merge(
+            $headers,
+            ['Authorization: Basic ' . base64_encode($auth['username'] . ':' . $auth['password'])]
+        );
+        self::assertSame(
+            $expectedHeaders,
+            $this->authHelper->addAuthenticationHeader($headers, $origin, $url)
+        );
+    }
+
     /**
      * @dataProvider bitbucketPublicUrlProvider
      */
