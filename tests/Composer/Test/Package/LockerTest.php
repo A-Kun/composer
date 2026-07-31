@@ -125,6 +125,66 @@ class LockerTest extends TestCase
         $locker->setLockData([$package1, $package2], [], [], [], [], 'dev', [], false, false, ['foo/bar' => '1.0']);
     }
 
+    public function testSetLockDataPreservesHigherExistingPluginApiVersion(): void
+    {
+        $json = $this->createJsonFileMock();
+        $inst = $this->createInstallationManagerMock();
+
+        $locker = new Locker(new NullIO, $json, $inst, $this->getJsonContent());
+
+        $json
+            ->expects($this->exactly(2))
+            ->method('exists')
+            ->will($this->returnValue(true));
+        $json
+            ->expects($this->once())
+            ->method('read')
+            ->will($this->returnValue([
+                'packages' => [],
+                'plugin-api-version' => '2.7.0',
+            ]));
+        $json
+            ->expects($this->once())
+            ->method('write')
+            ->with($this->callback(static function (array $lock): bool {
+                self::assertSame('2.7.0', $lock['plugin-api-version']);
+
+                return true;
+            }));
+
+        $locker->setLockData([], [], [], [], [], 'dev', [], false, false, []);
+    }
+
+    public function testSetLockDataUpdatesLowerExistingPluginApiVersion(): void
+    {
+        $json = $this->createJsonFileMock();
+        $inst = $this->createInstallationManagerMock();
+
+        $locker = new Locker(new NullIO, $json, $inst, $this->getJsonContent());
+
+        $json
+            ->expects($this->exactly(2))
+            ->method('exists')
+            ->will($this->returnValue(true));
+        $json
+            ->expects($this->once())
+            ->method('read')
+            ->will($this->returnValue([
+                'packages' => [],
+                'plugin-api-version' => '2.5.0',
+            ]));
+        $json
+            ->expects($this->once())
+            ->method('write')
+            ->with($this->callback(static function (array $lock): bool {
+                self::assertSame(PluginInterface::PLUGIN_API_VERSION, $lock['plugin-api-version']);
+
+                return true;
+            }));
+
+        $locker->setLockData([], [], [], [], [], 'dev', [], false, false, []);
+    }
+
     public function testLockBadPackages(): void
     {
         $json = $this->createJsonFileMock();

@@ -390,16 +390,25 @@ class Locker
         if (\count($platformOverrides) > 0) {
             $lock['platform-overrides'] = $platformOverrides;
         }
-        $lock['plugin-api-version'] = PluginInterface::PLUGIN_API_VERSION;
 
-        $lock = $this->fixupJsonDataType($lock);
-
+        $lockData = [];
         try {
             $isLocked = $this->isLocked();
+            if ($isLocked) {
+                $lockData = $this->getLockData();
+            }
         } catch (ParsingException $e) {
             $isLocked = false;
         }
-        if (!$isLocked || $lock !== $this->getLockData()) {
+        $pluginApiVersion = $lockData['plugin-api-version'] ?? null;
+        if (!is_string($pluginApiVersion) || version_compare($pluginApiVersion, PluginInterface::PLUGIN_API_VERSION, '<')) {
+            $pluginApiVersion = PluginInterface::PLUGIN_API_VERSION;
+        }
+        $lock['plugin-api-version'] = $pluginApiVersion;
+
+        $lock = $this->fixupJsonDataType($lock);
+
+        if (!$isLocked || $lock !== $lockData) {
             if ($write) {
                 $this->lockFile->write($lock);
                 $this->lockDataCache = null;
