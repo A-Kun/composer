@@ -405,6 +405,25 @@ class ValidatingArrayLoaderTest extends TestCase
             [
                 [
                     'name' => 'foo/bar',
+                    'bin' => ['bin/foo', '../../../../etc/evil', 'nested/../../escape'],
+                ],
+                [
+                    'bin.1 : invalid value (../../../../etc/evil), must not contain a ".." path component',
+                    'bin.2 : invalid value (nested/../../escape), must not contain a ".." path component',
+                ],
+            ],
+            [
+                [
+                    'name' => 'foo/bar',
+                    'bin' => '../escape',
+                ],
+                [
+                    'bin : invalid value (../escape), must not contain a ".." path component',
+                ],
+            ],
+            [
+                [
+                    'name' => 'foo/bar',
                     'source' => ['url' => 1],
                     'dist' => ['url' => null],
                 ],
@@ -463,25 +482,6 @@ class ValidatingArrayLoaderTest extends TestCase
                     'support.wiki : invalid value (foo:bar), must be an http/https URL',
                     'support.chat : invalid value (foo:bar), must be an http/https URL',
                     'support.security : invalid value (foo:bar), must be an http/https URL',
-                ],
-            ],
-            [
-                [
-                    'name' => 'foo/bar',
-                    'bin' => ['bin/foo', '../../../../etc/evil', 'nested/../../escape'],
-                ],
-                [
-                    'bin.1 : invalid value (../../../../etc/evil), must not contain a ".." path component',
-                    'bin.2 : invalid value (nested/../../escape), must not contain a ".." path component',
-                ],
-            ],
-            [
-                [
-                    'name' => 'foo/bar',
-                    'bin' => '../escape',
-                ],
-                [
-                    'bin : invalid value (../escape), must not contain a ".." path component',
                 ],
             ],
             [
@@ -603,9 +603,16 @@ class ValidatingArrayLoaderTest extends TestCase
     public function testValidatePackageAllowsValidPackages(): void
     {
         $package = self::getPackage('vendor/package', '1.0.0');
+        $package->setSourceType('git');
+        $package->setSourceUrl('https://example.org/vendor/package.git');
+        $package->setSourceReference('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $package->setDistType('zip');
+        $package->setDistUrl('https://example.org/vendor/package.zip');
+        $package->setDistReference('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
         $package->setBinaries(['bin/foo', 'console', 'some.bin']);
         ValidatingArrayLoader::validatePackage($package);
 
+        // platform packages are accepted as-is, and the root package is skipped entirely
         ValidatingArrayLoader::validatePackage(self::getPackage('php', '8.2.0'));
         ValidatingArrayLoader::validatePackage(self::getRootPackage());
 
@@ -627,10 +634,36 @@ class ValidatingArrayLoaderTest extends TestCase
      */
     public static function provideMaliciousPackages(): array
     {
+        $badName = self::getPackage('--evil/pkg', '1.0.0');
+
+        $badSourceUrl = self::getPackage('vendor/pkg', '1.0.0');
+        $badSourceUrl->setSourceType('git');
+        $badSourceUrl->setSourceUrl('--upload-pack=touch /tmp/pwned');
+        $badSourceUrl->setSourceReference('main');
+
+        $badSourceReference = self::getPackage('vendor/pkg', '1.0.0');
+        $badSourceReference->setSourceType('git');
+        $badSourceReference->setSourceUrl('https://example.org/vendor/pkg.git');
+        $badSourceReference->setSourceReference('--upload-pack=touch /tmp/pwned');
+
+        $badDistUrl = self::getPackage('vendor/pkg', '1.0.0');
+        $badDistUrl->setDistType('zip');
+        $badDistUrl->setDistUrl('-oProxyCommand=touch /tmp/pwned');
+
+        $badDistReference = self::getPackage('vendor/pkg', '1.0.0');
+        $badDistReference->setDistType('zip');
+        $badDistReference->setDistUrl('https://example.org/vendor/pkg.zip');
+        $badDistReference->setDistReference('--evil');
+
         $badBin = self::getPackage('vendor/pkg', '1.0.0');
         $badBin->setBinaries(['bin/ok', '../../../../escape-target.txt']);
 
         return [
+            'invalid name' => [$badName, 'Invalid package found during dependency resolution'],
+            'dash source.url' => [$badSourceUrl, 'vendor/pkg has an invalid source.url'],
+            'dash source.reference' => [$badSourceReference, 'vendor/pkg has an invalid source.reference'],
+            'dash dist.url' => [$badDistUrl, 'vendor/pkg has an invalid dist.url'],
+            'dash dist.reference' => [$badDistReference, 'vendor/pkg has an invalid dist.reference'],
             'bin path traversal' => [$badBin, 'vendor/pkg has an invalid bin ../../../../escape-target.txt, it must not contain ".." path segments'],
         ];
     }
