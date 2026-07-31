@@ -12,8 +12,10 @@
 
 namespace Composer\Test\Package\Loader;
 
+use Composer\Exception\SecurityException;
 use Composer\Package\Loader\ValidatingArrayLoader;
 use Composer\Package\Loader\InvalidPackageException;
+use Composer\Package\PackageInterface;
 use Composer\Test\TestCase;
 
 class ValidatingArrayLoaderTest extends TestCase
@@ -466,6 +468,25 @@ class ValidatingArrayLoaderTest extends TestCase
             [
                 [
                     'name' => 'foo/bar',
+                    'bin' => ['bin/foo', '../../../../etc/evil', 'nested/../../escape'],
+                ],
+                [
+                    'bin.1 : invalid value (../../../../etc/evil), must not contain a ".." path component',
+                    'bin.2 : invalid value (nested/../../escape), must not contain a ".." path component',
+                ],
+            ],
+            [
+                [
+                    'name' => 'foo/bar',
+                    'bin' => '../escape',
+                ],
+                [
+                    'bin : invalid value (../escape), must not contain a ".." path component',
+                ],
+            ],
+            [
+                [
+                    'name' => 'foo/bar',
                     'require' => [
                         'foo/baz' => '*',
                         'bar/baz' => '>=1.0',
@@ -576,6 +597,41 @@ class ValidatingArrayLoaderTest extends TestCase
                     'license' => ['MIT'],
                 ]
             ],
+        ];
+    }
+
+    public function testValidatePackageAllowsValidPackages(): void
+    {
+        $package = self::getPackage('vendor/package', '1.0.0');
+        $package->setBinaries(['bin/foo', 'console', 'some.bin']);
+        ValidatingArrayLoader::validatePackage($package);
+
+        ValidatingArrayLoader::validatePackage(self::getPackage('php', '8.2.0'));
+        ValidatingArrayLoader::validatePackage(self::getRootPackage());
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    /**
+     * @dataProvider provideMaliciousPackages
+     */
+    public function testValidatePackageRejectsMaliciousMetadata(PackageInterface $package, string $expectedMessage): void
+    {
+        $this->expectException(SecurityException::class);
+        $this->expectExceptionMessage($expectedMessage);
+        ValidatingArrayLoader::validatePackage($package);
+    }
+
+    /**
+     * @return array<string, array{PackageInterface, string}>
+     */
+    public static function provideMaliciousPackages(): array
+    {
+        $badBin = self::getPackage('vendor/pkg', '1.0.0');
+        $badBin->setBinaries(['bin/ok', '../../../../escape-target.txt']);
+
+        return [
+            'bin path traversal' => [$badBin, 'vendor/pkg has an invalid bin ../../../../escape-target.txt, it must not contain ".." path segments'],
         ];
     }
 }

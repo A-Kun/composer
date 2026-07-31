@@ -12,7 +12,10 @@
 
 namespace Composer\Package\Loader;
 
+use Composer\Exception\SecurityException;
 use Composer\Package\BasePackage;
+use Composer\Package\PackageInterface;
+use Composer\Package\RootPackageInterface;
 use Composer\Pcre\Preg;
 use Composer\Semver\Constraint\Constraint;
 use Composer\Package\Version\VersionParser;
@@ -113,6 +116,19 @@ class ValidatingArrayLoader implements LoaderInterface
                 $this->validateString('bin');
             } else {
                 $this->validateFlatArray('bin');
+            }
+            if (isset($this->config['bin']) && is_string($this->config['bin'])) {
+                if (Preg::isMatch('{(?:^|[\\\\/])\.\.(?:[\\\\/]|$)}', $this->config['bin'])) {
+                    $this->errors[] = 'bin : invalid value ('.$this->config['bin'].'), must not contain a ".." path component';
+                    unset($this->config['bin']);
+                }
+            } elseif (isset($this->config['bin']) && is_array($this->config['bin'])) {
+                foreach ($this->config['bin'] as $key => $bin) {
+                    if (is_string($bin) && Preg::isMatch('{(?:^|[\\\\/])\.\.(?:[\\\\/]|$)}', $bin)) {
+                        $this->errors[] = 'bin.'.$key.' : invalid value ('.$bin.'), must not contain a ".." path component';
+                        unset($this->config['bin'][$key]);
+                    }
+                }
             }
         }
 
@@ -509,6 +525,25 @@ class ValidatingArrayLoader implements LoaderInterface
         }
 
         return null;
+    }
+
+    /**
+     * Re-applies security-sensitive validation to a resolved package before it is written to or
+     * installed from the lock file.
+     *
+     * @throws SecurityException
+     */
+    public static function validatePackage(PackageInterface $package): void
+    {
+        if ($package instanceof RootPackageInterface) {
+            return;
+        }
+
+        foreach ($package->getBinaries() as $bin) {
+            if (Preg::isMatch('{(?:^|[\\\\/])\.\.(?:[\\\\/]|$)}', $bin)) {
+                throw new SecurityException($package->getName().' has an invalid bin '.$bin.', it must not contain ".." path segments');
+            }
+        }
     }
 
     /**
