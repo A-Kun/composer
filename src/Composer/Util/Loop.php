@@ -83,9 +83,9 @@ class Loop
 
         $lastUpdate = 0;
         while (true) {
-            $activeJobs = 0;
+            $activeHttpJobs = $this->httpDownloader->countActiveJobs();
+            $activeJobs = $activeHttpJobs;
 
-            $activeJobs += $this->httpDownloader->countActiveJobs();
             if ($this->processExecutor) {
                 $activeJobs += $this->processExecutor->countActiveJobs();
             }
@@ -97,6 +97,11 @@ class Loop
 
             if (!$activeJobs) {
                 break;
+            }
+
+            // Curl blocks while waiting for activity, but process polling does not.
+            if ($activeHttpJobs === 0) {
+                usleep(1000);
             }
         }
 
