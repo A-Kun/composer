@@ -1,3 +1,11 @@
+### [2.8.14] 2026-07-31
+
+> Unofficial community release based on Composer 2.8.13. This release is not produced or supported by the upstream Composer project.
+
+  * Preserved newer plugin API version values in `composer.lock`
+  * Avoided busy polling while waiting for processes
+  * Improved dependency pool alias lookup performance
+
 ### [2.8.13] 2026-07-31
 
 > Unofficial community security release based on Composer 2.8.12. This release is not produced or supported by the upstream Composer project.
@@ -2056,6 +2064,7 @@
 
   * Initial release
 
+[2.8.14]: https://github.com/A-Kun/composer/compare/2.8.13...2.8.14
 [2.8.13]: https://github.com/A-Kun/composer/compare/2.8.12...2.8.13
 [2.8.12]: https://github.com/composer/composer/compare/2.8.11...2.8.12
 [2.8.11]: https://github.com/composer/composer/compare/2.8.10...2.8.11
