@@ -78,7 +78,7 @@ class PoolBuilder
     private $io;
     /**
      * @var array[]
-     * @phpstan-var array<string, AliasPackage[]>
+     * @phpstan-var array<int, AliasPackage[]>
      */
     private $aliasMap = [];
     /**
@@ -295,9 +295,7 @@ class PoolBuilder
 
                     $constraint = $this->temporaryConstraints[$packageName];
                     $packageAndAliases = [$i => $package];
-                    if (isset($this->aliasMap[spl_object_hash($package)])) {
-                        $packageAndAliases += $this->aliasMap[spl_object_hash($package)];
-                    }
+                    $packageAndAliases += $this->aliasMap[spl_object_id($package)] ?? [];
 
                     $found = false;
                     foreach ($packageAndAliases as $packageOrAlias) {
@@ -466,7 +464,7 @@ class PoolBuilder
         $this->packages[$index] = $package;
 
         if ($package instanceof AliasPackage) {
-            $this->aliasMap[spl_object_hash($package->getAliasOf())][$index] = $package;
+            $this->aliasMap[spl_object_id($package->getAliasOf())][$index] = $package;
         }
 
         $name = $package->getName();
@@ -502,7 +500,7 @@ class PoolBuilder
 
             $newIndex = $this->indexCounter++;
             $this->packages[$newIndex] = $aliasPackage;
-            $this->aliasMap[spl_object_hash($aliasPackage->getAliasOf())][$newIndex] = $aliasPackage;
+            $this->aliasMap[spl_object_id($aliasPackage->getAliasOf())][$newIndex] = $aliasPackage;
         }
 
         foreach ($package->getRequires() as $link) {
@@ -768,12 +766,13 @@ class PoolBuilder
 
         unset($this->loadedPerRepo[$repoIndex][$package->getName()][$package->getVersion()]);
         unset($this->packages[$index]);
-        if (isset($this->aliasMap[spl_object_hash($package)])) {
-            foreach ($this->aliasMap[spl_object_hash($package)] as $aliasIndex => $aliasPackage) {
+        $packageId = spl_object_id($package);
+        if (isset($this->aliasMap[$packageId])) {
+            foreach ($this->aliasMap[$packageId] as $aliasIndex => $aliasPackage) {
                 unset($this->loadedPerRepo[$repoIndex][$aliasPackage->getName()][$aliasPackage->getVersion()]);
                 unset($this->packages[$aliasIndex]);
             }
-            unset($this->aliasMap[spl_object_hash($package)]);
+            unset($this->aliasMap[$packageId]);
         }
     }
 
