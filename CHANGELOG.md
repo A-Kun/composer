@@ -1,3 +1,12 @@
+### [2.8.13] 2026-07-31
+
+> Unofficial community security release based on Composer 2.8.12. This release is not produced or supported by the upstream Composer project.
+
+  * Sanitized untrusted terminal output to prevent ANSI sequence injection (CVE-2025-67746)
+  * Hardened Perforce command execution and VCS identifier handling against command and argument injection (CVE-2026-40176, CVE-2026-40261)
+  * Prevented GitHub and URL-embedded credentials from leaking through validation errors and verbose output (CVE-2026-45793, CVE-2026-59947)
+  * Revalidated resolved package names, source/dist metadata, and binary paths before lock-file writes (CVE-2026-59946, CVE-2026-59948)
+
 ### [2.8.12] 2025-09-19
 
   * Fixed json schema issues with version validation (#12512)
@@ -2047,6 +2056,7 @@
 
   * Initial release
 
+[2.8.13]: https://github.com/A-Kun/composer/compare/2.8.12...2.8.13
 [2.8.12]: https://github.com/composer/composer/compare/2.8.11...2.8.12
 [2.8.11]: https://github.com/composer/composer/compare/2.8.10...2.8.11
 [2.8.10]: https://github.com/composer/composer/compare/2.8.9...2.8.10
