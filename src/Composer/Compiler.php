@@ -311,10 +311,9 @@ Phar::mapPhar('composer.phar');
 
 EOF;
 
-        // add warning once the phar is older than 60 days
+        // disable the development-build age warning
         if (Preg::isMatch('{^[a-f0-9]+$}', $this->version)) {
-            $warningTime = ((int) $this->versionDate->format('U')) + 60 * 86400;
-            $stub .= "define('COMPOSER_DEV_WARNING_TIME', $warningTime);\n";
+            $stub .= "define('COMPOSER_DEV_WARNING_TIME', INF);\n";
         }
 
         return $stub . <<<'EOF'
