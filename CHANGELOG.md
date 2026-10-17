@@ -1,4 +1,6 @@
-### Unreleased
+### [2.8.15] 2026-10-17
+
+> Unofficial community security release based on Composer 2.8.14. This release is not produced or supported by the upstream Composer project.
 
   * Security: Rejected Perforce source endpoints that execute local commands (CVE-2026-84361)
   * Security: Prevented package binaries from changing permissions or registering proxies for files outside the package directory (CVE-2026-59944)
@@ -2069,6 +2071,7 @@
 
   * Initial release
 
+[2.8.15]: https://github.com/A-Kun/composer/compare/2.8.14...2.8.15
 [2.8.14]: https://github.com/A-Kun/composer/compare/2.8.13...2.8.14
 [2.8.13]: https://github.com/A-Kun/composer/compare/2.8.12...2.8.13
 [2.8.12]: https://github.com/composer/composer/compare/2.8.11...2.8.12
