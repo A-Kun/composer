@@ -20,6 +20,7 @@ use Composer\Test\TestCase;
 use Composer\Util\Filesystem;
 use Composer\Util\Http\Response;
 use Composer\Util\Loop;
+use Composer\Util\Platform;
 use Composer\Config;
 use Composer\Composer;
 
@@ -84,6 +85,61 @@ class FileDownloaderTest extends TestCase
             self::assertInstanceOf('RuntimeException', $e);
             self::assertStringContainsString('exists and is not a directory', $e->getMessage());
         }
+    }
+
+    /**
+     * @dataProvider provideInstalledBinaries
+     */
+    public function testInstallOnlyChmodsBinariesInsidePackage(string $bin, bool $executable): void
+    {
+        $rootDir = self::getUniqueTmpDirectory();
+        $vendorDir = $rootDir.'/vendor';
+        $path = $vendorDir.'/attacker/pkg';
+        $fs = new Filesystem();
+
+        try {
+            $package = self::getPackage();
+            $package->setDistUrl('http://example.com/script.js');
+            $package->setBinaries([$bin]);
+
+            $victim = $rootDir.'/victim.sh';
+            file_put_contents($victim, 'outside package');
+            chmod($victim, 0600);
+            clearstatcache();
+            $modeBefore = fileperms($victim);
+
+            $downloader = $this->getDownloader(null, $this->getConfig(['vendor-dir' => $vendorDir]));
+            $method = new \ReflectionMethod($downloader, 'getFileName');
+            if (\PHP_VERSION_ID < 80100) {
+                $method->setAccessible(true);
+            }
+            $tmpFile = $method->invoke($downloader, $package, $path);
+            $fs->ensureDirectoryExists(dirname($tmpFile));
+            file_put_contents($tmpFile, 'downloaded');
+            chmod($tmpFile, 0600);
+
+            $downloader->install($package, $path, false);
+
+            self::assertFileExists($path.'/script.js');
+            clearstatcache();
+            self::assertSame($modeBefore, fileperms($victim));
+            if (!Platform::isWindows()) {
+                self::assertSame($executable, is_executable($path.'/script.js'));
+            }
+        } finally {
+            $fs->removeDirectory($rootDir);
+        }
+    }
+
+    /**
+     * @return array<string, array{string, bool}>
+     */
+    public static function provideInstalledBinaries(): array
+    {
+        return [
+            'traversal from installed metadata' => ['../../../victim.sh', false],
+            'in-package binary' => ['script.js', true],
+        ];
     }
 
     public function testGetFileName(): void

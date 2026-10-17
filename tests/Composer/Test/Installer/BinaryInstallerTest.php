@@ -86,6 +86,127 @@ class BinaryInstallerTest extends TestCase
         self::assertEquals('success arg', $output);
     }
 
+    /**
+     * @requires function symlink
+     */
+    public function testInstallBinaryRejectsSymlinkEscapingPackageDir(): void
+    {
+        $package = $this->createPackageMock();
+        $package->method('getBinaries')->willReturn(['bin/command']);
+
+        $victim = $this->rootDir.'/victim.sh';
+        file_put_contents($victim, 'outside package');
+        chmod($victim, 0600);
+        clearstatcache();
+        $modeBefore = fileperms($victim);
+
+        $installPath = $this->vendorDir.'/attacker/pkg';
+        self::ensureDirectoryExistsAndClear($installPath.'/bin');
+        if (!@symlink('../../../../victim.sh', $installPath.'/bin/command')) {
+            $this->markTestSkipped('Symbolic links are not supported on this platform');
+        }
+
+        $this->io->expects($this->once())->method('writeError')->with(
+            '    <warning>Skipped installation of bin bin/command for package '.$package->getName().': the bin resolves to a path outside of the package directory</warning>'
+        );
+
+        $installer = new BinaryInstaller($this->io, $this->binDir, 'full', $this->fs);
+        $installer->installBinaries($package, $installPath);
+
+        self::assertFileDoesNotExist($this->binDir.'/command');
+        self::assertFileDoesNotExist($this->binDir.'/command.bat');
+        clearstatcache();
+        self::assertSame($modeBefore, fileperms($victim));
+    }
+
+    public function testInstallBinaryRejectsTraversingBinPath(): void
+    {
+        $package = $this->createPackageMock();
+        $package->method('getBinaries')->willReturn(['../../../victim.sh']);
+
+        $victim = $this->rootDir.'/victim.sh';
+        file_put_contents($victim, 'outside package');
+        chmod($victim, 0600);
+        clearstatcache();
+        $modeBefore = fileperms($victim);
+
+        $installPath = $this->vendorDir.'/attacker/pkg';
+        self::ensureDirectoryExistsAndClear($installPath);
+        $this->io->expects($this->once())->method('writeError')->with(
+            '    <warning>Skipped installation of bin ../../../victim.sh for package '.$package->getName().': the bin resolves to a path outside of the package directory</warning>'
+        );
+
+        $installer = new BinaryInstaller($this->io, $this->binDir, 'full', $this->fs);
+        $installer->installBinaries($package, $installPath);
+
+        self::assertFileDoesNotExist($this->binDir.'/victim.sh');
+        self::assertFileDoesNotExist($this->binDir.'/victim.sh.bat');
+        clearstatcache();
+        self::assertSame($modeBefore, fileperms($victim));
+    }
+
+    /**
+     * @dataProvider provideSymlinkedInstallPaths
+     * @requires function symlink
+     */
+    public function testInstallBinaryAllowsInPackageSymlink(bool $symlinkInstallPath): void
+    {
+        $package = $this->createPackageMock();
+        $package->method('getBinaries')->willReturn(['bin/command']);
+
+        $realInstallPath = $this->rootDir.'/package';
+        self::ensureDirectoryExistsAndClear($realInstallPath.'/bin');
+        file_put_contents($realInstallPath.'/command.php', '<?php echo "success";');
+        if (!@symlink('../command.php', $realInstallPath.'/bin/command')) {
+            $this->markTestSkipped('Symbolic links are not supported on this platform');
+        }
+
+        $installPath = $realInstallPath;
+        if ($symlinkInstallPath) {
+            $installPath = $this->vendorDir.'/linked-package';
+            if (!@symlink($realInstallPath, $installPath)) {
+                $this->markTestSkipped('Symbolic links are not supported on this platform');
+            }
+        }
+
+        $this->io->expects($this->never())->method('writeError');
+        $installer = new BinaryInstaller($this->io, $this->binDir, 'full', $this->fs);
+        $installer->installBinaries($package, $installPath);
+
+        self::assertFileExists($this->binDir.'/command');
+        self::assertFileExists($this->binDir.'/command.bat');
+        $process = new ProcessExecutor();
+        self::assertSame(0, $process->execute([PHP_BINARY, $this->binDir.'/command'], $output));
+        self::assertSame('success', $output);
+    }
+
+    /**
+     * @return array<string, array{bool}>
+     */
+    public static function provideSymlinkedInstallPaths(): array
+    {
+        return [
+            'regular package directory' => [false],
+            'symlinked path repository' => [true],
+        ];
+    }
+
+    public function testIsBinPathInsidePackageChecksResolvedDirectoryBoundaries(): void
+    {
+        $installPath = $this->vendorDir.'/pkg';
+        $siblingPath = $this->vendorDir.'/pkg-other';
+        self::ensureDirectoryExistsAndClear($installPath);
+        self::ensureDirectoryExistsAndClear($siblingPath);
+        file_put_contents($installPath.'/command', 'inside package');
+        file_put_contents($siblingPath.'/command', 'outside package');
+
+        self::assertTrue(BinaryInstaller::isBinPathInsidePackage($installPath, $installPath.'/command'));
+        self::assertFalse(BinaryInstaller::isBinPathInsidePackage($installPath, $siblingPath.'/command'));
+        self::assertFalse(BinaryInstaller::isBinPathInsidePackage($installPath, $installPath.'/missing'));
+        self::assertFalse(BinaryInstaller::isBinPathInsidePackage($this->vendorDir.'/missing', $installPath.'/command'));
+        self::assertFalse(BinaryInstaller::isBinPathInsidePackage($installPath, $installPath));
+    }
+
     public static function executableBinaryProvider(): array
     {
         return [

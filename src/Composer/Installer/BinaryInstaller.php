@@ -71,6 +71,10 @@ class BinaryInstaller
                 $this->io->writeError('    <warning>Skipped installation of bin '.$bin.' for package '.$package->getName().': found a directory at that path</warning>');
                 continue;
             }
+            if (!self::isBinPathInsidePackage($installPath, $binPath)) {
+                $this->io->writeError('    <warning>Skipped installation of bin '.$bin.' for package '.$package->getName().': the bin resolves to a path outside of the package directory</warning>');
+                continue;
+            }
             if (!$this->filesystem->isAbsolutePath($binPath)) {
                 // in case a custom installer returned a relative path for the
                 // $package, we can now safely turn it into a absolute path (as we
@@ -145,6 +149,18 @@ class BinaryInstaller
         }
 
         return 'php';
+    }
+
+    public static function isBinPathInsidePackage(string $installPath, string $binPath): bool
+    {
+        // Resolve symlinks as well as ".." segments before checking the directory boundary.
+        $realBinPath = realpath($binPath);
+        $realInstallPath = realpath($installPath);
+        if (false === $realBinPath || false === $realInstallPath) {
+            return false;
+        }
+
+        return strpos($realBinPath, $realInstallPath.DIRECTORY_SEPARATOR) === 0;
     }
 
     /**

@@ -1,6 +1,7 @@
 ### Unreleased
 
   * Security: Rejected Perforce source endpoints that execute local commands (CVE-2026-84361)
+  * Security: Prevented package binaries from changing permissions or registering proxies for files outside the package directory (CVE-2026-59944)
 
 ### [2.8.14] 2026-07-31
 
