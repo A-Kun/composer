@@ -12,6 +12,7 @@
 
 namespace Composer\Util;
 
+use Composer\Exception\SecurityException;
 use Composer\IO\IOInterface;
 use Composer\Pcre\Preg;
 use Symfony\Component\Process\ExecutableFinder;
@@ -64,6 +65,10 @@ class Perforce
      */
     public function __construct($repoConfig, string $port, string $path, ProcessExecutor $process, bool $isWindows, IOInterface $io)
     {
+        if (!self::isValidPort($port)) {
+            throw new SecurityException('Invalid Perforce port ('.$port.'), it must be of the form [tcp|ssl:][host:]port');
+        }
+
         $this->windowsFlag = $isWindows;
         $this->p4Port = $port;
         $this->initializePath($path);
@@ -82,7 +87,22 @@ class Perforce
 
     public static function checkServerExists(string $url, ProcessExecutor $processExecutor): bool
     {
+        // This detection probe also receives non-Perforce VCS URLs.
+        if (!self::isValidPort($url)) {
+            return false;
+        }
+
         return 0 === $processExecutor->execute(['p4', '-p', $url, 'info', '-s'], $ignoredOutput);
+    }
+
+    public static function isValidPort(string $url): bool
+    {
+        // These transports execute a local command in p4, even when passed as a single argument.
+        if (Preg::isMatch('{^\s*+(?:rsh|jsh)\s*+:}i', $url)) {
+            return false;
+        }
+
+        return Preg::isMatch('{^(?:(?:tcp|ssl)(?:4|6|46|64)?:)?(?:\[[0-9a-f:.]++\]|[a-z0-9._][a-z0-9._-]*+)(?::[a-z0-9._][a-z0-9._-]*+)?$}iD', $url);
     }
 
     /**

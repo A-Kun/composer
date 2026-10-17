@@ -1,3 +1,7 @@
+### Unreleased
+
+  * Security: Rejected Perforce source endpoints that execute local commands (CVE-2026-84361)
+
 ### [2.8.14] 2026-07-31
 
 > Unofficial community release based on Composer 2.8.13. This release is not produced or supported by the upstream Composer project.

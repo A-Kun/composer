@@ -12,6 +12,7 @@
 
 namespace Composer\Test\Util;
 
+use Composer\Exception\SecurityException;
 use Composer\Json\JsonFile;
 use Composer\Test\Mock\ProcessExecutorMock;
 use Composer\Util\Perforce;
@@ -588,6 +589,84 @@ class PerforceTest extends TestCase
 
         $result = $this->perforce->checkServerExists('perforce.does.exist:port', $this->processExecutor);
         self::assertTrue($result);
+    }
+
+    /**
+     * @dataProvider provideValidPorts
+     */
+    public function testIsValidPortAcceptsNetworkEndpoints(string $port): void
+    {
+        self::assertTrue(Perforce::isValidPort($port));
+    }
+
+    /**
+     * @return array<array{string}>
+     */
+    public static function provideValidPorts(): array
+    {
+        return [
+            ['1666'],
+            ['perforce'],
+            ['p4.example.org:1666'],
+            ['perforce.does.exist:port'],
+            ['tcp:p4.example.org:1666'],
+            ['tcp4:p4.example.org:1666'],
+            ['ssl:p4.example.org:1666'],
+            ['SSL:p4.example.org:1666'],
+            ['ssl64:[2001:db8::1]:1666'],
+            ['tcp6:[::1]:1666'],
+        ];
+    }
+
+    /**
+     * @dataProvider provideInvalidPorts
+     */
+    public function testIsValidPortRejectsNonNetworkEndpoints(string $port): void
+    {
+        self::assertFalse(Perforce::isValidPort($port));
+    }
+
+    /**
+     * @dataProvider provideInvalidPorts
+     */
+    public function testCheckServerExistsRejectsInvalidPortWithoutExecutingCommands(string $port): void
+    {
+        $this->processExecutor->expects([], true);
+
+        self::assertFalse(Perforce::checkServerExists($port, $this->processExecutor));
+    }
+
+    /**
+     * @dataProvider provideInvalidPorts
+     */
+    public function testCreatingPerforceWithInvalidPortThrows(string $port): void
+    {
+        $this->processExecutor->expects([], true);
+        self::expectException(SecurityException::class);
+        self::expectExceptionMessage('Invalid Perforce port ('.$port.')');
+
+        new Perforce($this->repoConfig, $port, self::TEST_PATH, $this->processExecutor, false, $this->io);
+    }
+
+    /**
+     * @return array<array{string}>
+     */
+    public static function provideInvalidPorts(): array
+    {
+        return [
+            ['rsh:/tmp/invalid-command'],
+            ['rsh:invalid-command'],
+            ['RSH:invalid-command'],
+            [' rsh:invalid-command'],
+            ['jsh:invalid-command'],
+            ['JsH:invalid-command'],
+            ['rsh :invalid-command'],
+            ['tcp:p4.example.org:1666; invalid-command'],
+            ['https://example.org/vendor/pkg.git'],
+            ['-p1666'],
+            ["p4.example.org:1666\n"],
+            [''],
+        ];
     }
 
     /**

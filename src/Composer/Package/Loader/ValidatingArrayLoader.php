@@ -23,6 +23,7 @@ use Composer\Repository\PlatformRepository;
 use Composer\Semver\Constraint\MatchNoneConstraint;
 use Composer\Semver\Intervals;
 use Composer\Spdx\SpdxLicenses;
+use Composer\Util\Perforce;
 
 /**
  * @author Jordi Boggiano <j.boggiano@seld.be>
@@ -418,6 +419,12 @@ class ValidatingArrayLoader implements LoaderInterface
                 if (isset($this->config[$srcType]['url']) && Preg::isMatch('{^\s*-}', (string) $this->config[$srcType]['url'])) {
                     $this->errors[] = $srcType . '.url : must not start with a "-", "'.$this->config[$srcType]['url'].'" given';
                 }
+                if ($srcType === 'source' && ($this->config[$srcType]['type'] ?? null) === 'perforce'
+                    && isset($this->config[$srcType]['url']) && is_string($this->config[$srcType]['url'])
+                    && !Perforce::isValidPort($this->config[$srcType]['url'])
+                ) {
+                    $this->errors[] = $srcType . '.url : invalid Perforce port ("'.$this->config[$srcType]['url'].'"), it must be of the form [tcp|ssl:][host:]port';
+                }
             }
         }
 
@@ -565,6 +572,11 @@ class ValidatingArrayLoader implements LoaderInterface
             if ($value !== null && Preg::isMatch('{^\s*-}', $value)) {
                 throw new SecurityException($package->getName().' has an invalid '.$field.', it must not start with a "-": '.$value);
             }
+        }
+
+        $sourceUrl = $package->getSourceUrl();
+        if ($package->getSourceType() === 'perforce' && $sourceUrl !== null && !Perforce::isValidPort($sourceUrl)) {
+            throw new SecurityException($package->getName().' has an invalid source.url, it must be a Perforce port of the form [tcp|ssl:][host:]port: '.$sourceUrl);
         }
 
         // Bin paths are resolved relative to the package install dir and then chmod'd (and
